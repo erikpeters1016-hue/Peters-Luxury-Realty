@@ -6,8 +6,9 @@ import json
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-
+import resend
 load_dotenv()
+resend.api_key = os.environ.get("RESEND_API_KEY")
 # Set up the Flask app — this is our web server
 app = Flask(__name__)
 CORS(app)  # Allow the browser to talk to this server
@@ -73,7 +74,7 @@ Lead with what makes it special, not a data sheet. Example structure:
 
 Then offer a next step: "Want me to tell you more, or set you up with our agent for a private showing?"
 
-# Qualifying interest
+
 # Qualifying interest
 When someone seems genuinely interested in a property, gently learn what matters to them. Good questions to weave in naturally:
 - What's their timeline?
@@ -183,6 +184,62 @@ def already_saved(name, contact):
     return False
 
 
+def send_lead_email(name, contact, interest, conversation):
+    """Email a lead notification to the firm's lead inbox."""
+    
+    notification_email = os.environ.get("LEAD_NOTIFICATION_EMAIL")
+    if not notification_email:
+        print("⚠️  No LEAD_NOTIFICATION_EMAIL set — skipping email")
+        return
+    
+    # Build a readable HTML transcript of the conversation
+    transcript_html = ""
+    for msg in conversation:
+        role = "Customer" if msg["role"] == "user" else "Riley"
+        bg_color = "#f5f0e8" if msg["role"] == "user" else "#ffffff"
+        transcript_html += f"""
+        <div style="background:{bg_color};padding:12px 16px;border-radius:12px;margin-bottom:8px;border:1px solid #e2e8f0;">
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:4px;">{role}</div>
+            <div style="color:#2d3748;line-height:1.5;">{msg['content']}</div>
+        </div>
+        """
+    
+    html_body = f"""
+    <div style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#2d3748;">
+        <div style="background:linear-gradient(135deg,#2a2520 0%,#1a1612 100%);color:white;padding:24px;border-radius:12px 12px 0 0;">
+            <div style="font-family:'Georgia',serif;font-size:24px;font-weight:500;margin-bottom:4px;">🏛️ New Lead — Peters Luxury Realty</div>
+            <div style="font-size:13px;opacity:0.85;">Captured by Riley · {datetime.now().strftime("%B %d, %Y at %I:%M %p")}</div>
+        </div>
+        
+        <div style="background:white;padding:24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;border-top:none;">
+            <table style="width:100%;border-collapse:collapse;">
+                <tr><td style="padding:8px 0;color:#888;font-size:13px;width:120px;">NAME</td><td style="padding:8px 0;font-size:16px;font-weight:600;">{name}</td></tr>
+                <tr><td style="padding:8px 0;color:#888;font-size:13px;">CONTACT</td><td style="padding:8px 0;font-size:16px;">{contact}</td></tr>
+                <tr><td style="padding:8px 0;color:#888;font-size:13px;vertical-align:top;">INTEREST</td><td style="padding:8px 0;font-size:15px;line-height:1.5;">{interest}</td></tr>
+            </table>
+            
+            <div style="background:#f5f0e8;padding:14px;border-radius:8px;margin-top:20px;border-left:3px solid #d4af6c;">
+                <strong style="color:#2a2520;">⚡ Speed-to-lead matters.</strong> Studies show calling within 5 minutes is 100x more effective than within an hour. Reach out now.
+            </div>
+            
+            <h3 style="margin-top:32px;margin-bottom:12px;font-family:Georgia,serif;font-weight:500;color:#2a2520;">Conversation Transcript</h3>
+            {transcript_html}
+        </div>
+        
+        <div style="text-align:center;color:#888;font-size:11px;margin-top:16px;">Powered by Riley · Peters Luxury Realty AI Concierge</div>
+    </div>
+    """
+    
+    try:
+        resend.Emails.send({
+            "from": "Riley <onboarding@resend.dev>",
+            "to": [notification_email],
+            "subject": f"🏛️ New Lead: {name} ({contact})",
+            "html": html_body
+        })
+        print(f"📧 Lead email sent to {notification_email}")
+    except Exception as e:
+        print(f"⚠️  Email error: {e}")
 def save_lead(name, contact, interest, conversation):
     """Append a new lead to leads.csv. Creates the file with headers if it doesn't exist."""
     
@@ -208,8 +265,8 @@ def save_lead(name, contact, interest, conversation):
             transcript
         ])
     print(f"💾 NEW LEAD SAVED: {name} ({contact}) — {interest}")
+    send_lead_email(name, contact, interest, conversation)
     return True
-
 # This is a "route" — when the browser visits the main page (/), serve up index.html
 @app.route("/")
 def home():
@@ -245,12 +302,10 @@ def chat():
         )
     
     return jsonify({"reply": assistant_message})
-    
-    # Send the reply back to the browser as JSON
-    return jsonify({"reply": assistant_message})
-
+   
 
 # Start the server when we run this file
 if __name__ == "__main__":
-    print("Server starting at http://localhost:5000")
-    app.run(port=5000, debug=True)
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Server starting at http://localhost:{port}")
+    app.run(host="0.0.0.0", port=port, debug=True)
