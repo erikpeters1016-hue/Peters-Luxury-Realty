@@ -1,0 +1,104 @@
+ LISTING 1
+Address: 123 Oak Street, Oakland, CA 94610
+Price: $850,000
+Bedrooms: 3
+Bathrooms: 2
+Square Feet: 1,650
+Year Built: 1925
+Features: Hardwood floors, updated kitchen, fenced backyard, 1-car garage
+School District: Oakland Unified
+HOA: None
+Notes: Walking distance to Lake Merritt. Open house Saturdays 1-3pm.
+
+LISTING 2
+Address: 456 Pine Avenue, Berkeley, CA 94704
+Price: $1,250,000
+Bedrooms: 4
+Bathrooms: 3
+Square Feet: 2,200
+Year Built: 1940
+Features: Bay views, renovated bathrooms, solar panels, large deck
+School District: Berkeley Unified
+HOA: None
+Notes: Close to UC Berkeley campus. Showings by appointment only.
+
+LISTING 3
+Address: 789 Maple Court, Alameda, CA 94501
+Price: $675,000
+Bedrooms: 2
+Bathrooms: 1
+Square Feet: 1,100
+Year Built: 1950
+Features: New roof, updated electrical, small garden, off-street parking
+School District: Alameda Unified
+HOA: None
+Notes: Great starter home. Pet-friendly neighborhood.
+LISTING 4
+Address: 321 Elm Drive, Oakland, CA 94611
+Price: $950,000
+Bedrooms: 3
+Bathrooms: 2.5
+Square Feet: 1,850
+Year Built: 1965
+Features: Two-car garage, large kitchen island, primary suite, hot tub
+School District: Oakland Unified
+HOA: None
+Notes: Close to Montclair Village shops and restaurants. Move-in ready.
+
+LISTING 5
+Address: 654 Cedar Lane, Piedmont, CA 94611
+Price: $2,100,000
+Bedrooms: 5
+Bathrooms: 4
+Square Feet: 3,400
+Year Built: 1928
+Features: Original crown molding, chef's kitchen, wine cellar, pool, manicured grounds
+School District: Piedmont Unified
+HOA: None
+Notes: Stunning historic home. Private showings only.
+
+LISTING 6
+Address: 987 Birch Way, Emeryville, CA 94608
+Price: $725,000
+Bedrooms: 2
+Bathrooms: 2
+Square Feet: 1,250
+Year Built: 2010
+Features: Modern condo, in-unit laundry, gym access, secured parking, rooftop deck
+School District: Emery Unified
+HOA: $450/month
+Notes: Walk to Bay Street shops. Easy SF commute via Bay Bridge.
+
+LISTING 7
+Address: 246 Ash Street, Oakland, CA 94612
+Price: $550,000
+Bedrooms: 1
+Bathrooms: 1
+Square Feet: 850
+Year Built: 1995
+Features: Loft-style, exposed brick, high ceilings, in-unit washer/dryer
+School District: Oakland Unified
+HOA: $325/month
+Notes: Downtown Oakland. Great for first-time buyers or investors.
+=== FIRM INFO & FAQ ===
+
+Firm Name: Bay Area Premier Realty
+Office Hours: Monday-Friday 9am-7pm, Saturday-Sunday 10am-5pm
+Office Address: 1500 Broadway, Oakland, CA 94612
+Phone: (510) 555-0100
+Email: info@bayareapremier.example
+
+How to schedule a showing:
+Call our office or ask the assistant to take your name and phone number, and an agent will reach out within 2 hours during business hours.
+
+Financing:
+We work with several preferred lenders who offer pre-approval in as little as 24 hours. Ask for a referral.
+
+Buyer's agent fees:
+Typically paid by the seller. We're happy to explain the details on a call.
+
+Open houses:
+Listed on each individual property. We also host monthly buyer education seminars — ask for the schedule.
+
+Areas we serve:
+Oakland, Berkeley, Alameda, Piedmont, Emeryville, and surrounding East Bay communities.
