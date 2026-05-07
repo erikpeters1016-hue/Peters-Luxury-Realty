@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .DS_Store
 leads.csv
+google-credentials.json

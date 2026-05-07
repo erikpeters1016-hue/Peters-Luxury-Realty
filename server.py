@@ -7,6 +7,8 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 import resend
+import gspread
+from google.oauth2.service_account import Credentials
 load_dotenv()
 resend.api_key = os.environ.get("RESEND_API_KEY")
 # Set up the Flask app — this is our web server
@@ -240,6 +242,54 @@ def send_lead_email(name, contact, interest, conversation):
         print(f"📧 Lead email sent to {notification_email}")
     except Exception as e:
         print(f"⚠️  Email error: {e}")
+
+def append_to_google_sheet(name, contact, interest, conversation):
+    """Append a new lead row to the connected Google Sheet."""
+    
+    sheet_id = os.environ.get("GOOGLE_SHEET_ID")
+    if not sheet_id:
+        print("⚠️  No GOOGLE_SHEET_ID set — skipping Sheets")
+        return
+    
+    if not os.path.exists("google-credentials.json"):
+        print("⚠️  No google-credentials.json found — skipping Sheets")
+        return
+    
+    # Build a transcript string for the row
+    transcript = ""
+    for msg in conversation:
+        role = "Customer" if msg["role"] == "user" else "Riley"
+        transcript += f"{role}: {msg['content']}\n\n"
+    
+    try:
+        # Authenticate with the service account
+        # Authenticate with the service account (works both locally and on Render)
+        scopes = ["https://www.googleapis.com/auth/spreadsheets",
+                  "https://www.googleapis.com/auth/drive"]
+        
+        # Try env var first (production), then fall back to file (local)
+        creds_json_string = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+        if creds_json_string:
+            creds_dict = json.loads(creds_json_string)
+            creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        else:
+            creds = Credentials.from_service_account_file("google-credentials.json", scopes=scopes)
+        client_gs = gspread.authorize(creds)
+        
+        # Open the sheet and append the row
+        sheet = client_gs.open_by_key(sheet_id).sheet1
+        sheet.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            name,
+            contact,
+            interest,
+            "New",
+            transcript
+        ])
+        print(f"📊 Lead added to Google Sheet")
+    except Exception as e:
+        print(f"⚠️  Google Sheets error: {e}")        
+
 def save_lead(name, contact, interest, conversation):
     """Append a new lead to leads.csv. Creates the file with headers if it doesn't exist."""
     
@@ -266,6 +316,7 @@ def save_lead(name, contact, interest, conversation):
         ])
     print(f"💾 NEW LEAD SAVED: {name} ({contact}) — {interest}")
     send_lead_email(name, contact, interest, conversation)
+    append_to_google_sheet(name, contact, interest, conversation)
     return True
 # This is a "route" — when the browser visits the main page (/), serve up index.html
 @app.route("/")
