@@ -251,9 +251,7 @@ def append_to_google_sheet(name, contact, interest, conversation):
         print("⚠️  No GOOGLE_SHEET_ID set — skipping Sheets")
         return
     
-    if not os.path.exists("google-credentials.json"):
-        print("⚠️  No google-credentials.json found — skipping Sheets")
-        return
+    
     
     # Build a transcript string for the row
     transcript = ""
