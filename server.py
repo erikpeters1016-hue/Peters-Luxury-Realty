@@ -251,20 +251,7 @@ def append_to_google_sheet(name, contact, interest, conversation):
         print("⚠️  No GOOGLE_SHEET_ID set — skipping Sheets")
         return
     
-    
-    
-    # Build a transcript string for the row
-    sheet.append_row([
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            name,
-            contact,
-            interest,
-            "New",
-            transcript
-        ])
-    
     try:
-        # Authenticate with the service account
         # Authenticate with the service account (works both locally and on Render)
         scopes = ["https://www.googleapis.com/auth/spreadsheets",
                   "https://www.googleapis.com/auth/drive"]
@@ -276,9 +263,8 @@ def append_to_google_sheet(name, contact, interest, conversation):
             creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         else:
             creds = Credentials.from_service_account_file("google-credentials.json", scopes=scopes)
-        client_gs = gspread.authorize(creds)
         
-        # Open the sheet and append the row
+        client_gs = gspread.authorize(creds)
         sheet = client_gs.open_by_key(sheet_id).sheet1
         sheet.append_row([
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -286,11 +272,12 @@ def append_to_google_sheet(name, contact, interest, conversation):
             contact,
             interest,
             "New",
-            transcript
+            "Website chat (Riley)",
+            ""
         ])
         print(f"📊 Lead added to Google Sheet")
     except Exception as e:
-        print(f"⚠️  Google Sheets error: {e}")        
+        print(f"⚠️  Google Sheets error: {e}")       
 
 def save_lead(name, contact, interest, conversation):
     """Append a new lead to leads.csv. Creates the file with headers if it doesn't exist."""
