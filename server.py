@@ -254,10 +254,14 @@ def append_to_google_sheet(name, contact, interest, conversation):
     
     
     # Build a transcript string for the row
-    transcript = ""
-    for msg in conversation:
-        role = "Customer" if msg["role"] == "user" else "Riley"
-        transcript += f"{role}: {msg['content']}\n\n"
+    sheet.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            name,
+            contact,
+            interest,
+            "New",
+            transcript
+        ])
     
     try:
         # Authenticate with the service account
