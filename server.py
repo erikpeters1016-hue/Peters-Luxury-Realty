@@ -5,6 +5,7 @@ import csv
 import json
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 import resend
 import gspread
@@ -51,8 +52,9 @@ def load_firm_info():
 listings = load_listings()
 firm_info = load_firm_info()
 
-# Tell the agent who it is and what to do
-system_prompt = f"""You are Riley, a warm and knowledgeable concierge for Peters Luxury Realty, a boutique luxury real estate firm serving Beverly Hills, Bel Air, Malibu, and the Hollywood Hills.
+# Static base — listings and firm info are loaded once at startup.
+# Today's date is injected fresh per request inside build_system_prompt().
+_base_prompt = f"""You are Riley, a warm and knowledgeable concierge for Peters Luxury Realty, a boutique luxury real estate firm serving Beverly Hills, Bel Air, Malibu, and the Hollywood Hills.
 
 # Your role
 You help potential buyers explore listings, answer questions about neighborhoods and the buying process, and connect serious leads with a human agent.
@@ -133,6 +135,22 @@ Correct flow:
 
 If no slots are available, apologize and ask for an alternate date.
 
+# Date awareness — CRITICAL
+Today's date (Los Angeles time) is: {{TODAY_DATE_PLACEHOLDER}}
+
+Rules:
+- Always calculate relative dates ("tomorrow", "next Tuesday", "this weekend") from TODAY'S DATE above — never guess or assume a year
+- Before calling book_showing, confirm the FULL date including year with the buyer in plain English: "So that's [Weekday], [Month] [Day], [Year] — does that work?" Wait for them to confirm before booking
+- Never assume a year from context — always derive it from today's date
+
+# Rescheduling and cancellations
+You do NOT have the ability to modify or cancel existing calendar events — only to check availability and create new bookings.
+
+If a buyer asks to reschedule:
+- Be honest: "I can't directly modify an existing booking, but I can check for a new slot and book that for you — your agent will take care of removing the original."
+- Then proceed with check_availability for the new date if they want to continue
+- NEVER say you've rescheduled, updated, or cancelled a booking — you haven't
+
 # Never
 - Make up listing details
 - Quote prices or features that aren't in the data
@@ -144,6 +162,12 @@ If no slots are available, apologize and ask for an alternate date.
 === CURRENT LISTINGS ===
 {listings}
 """
+
+def build_system_prompt():
+    """Return the system prompt with today's LA date injected fresh."""
+    today = datetime.now(ZoneInfo("America/Los_Angeles")).strftime("%A, %B %-d, %Y")
+    return _base_prompt.replace("{TODAY_DATE_PLACEHOLDER}", today)
+
 # ──────────────────────────────────────────────────────────────
 # LEAD CAPTURE
 # ──────────────────────────────────────────────────────────────
@@ -443,6 +467,9 @@ def home():
 def chat():
     data = request.json
     conversation = data.get("conversation", [])
+
+    # Inject today's LA date fresh on every request
+    system_prompt = build_system_prompt()
 
     # Agentic loop — Riley may call tools before giving a final reply
     messages = list(conversation)
