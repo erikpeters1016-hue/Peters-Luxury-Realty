@@ -9,7 +9,9 @@ from dotenv import load_dotenv
 import resend
 import gspread
 from google.oauth2.service_account import Credentials
-load_dotenv()
+from calendar_utils import check_availability, book_showing
+
+load_dotenv(dotenv_path="/Users/erikpeters/Desktop/real-estate-agent/.env", override=True)
 resend.api_key = os.environ.get("RESEND_API_KEY")
 # Set up the Flask app — this is our web server
 app = Flask(__name__)
@@ -114,10 +116,26 @@ If asked something like "is this a good neighborhood for families?" or "is it sa
 # Small talk
 You can briefly engage with friendly small talk ("how's your day", "thanks", etc.) but always pivot back to how you can help with their home search.
 
+# Scheduling showings — TOOL USE REQUIRED
+You can check calendar availability and book 1-hour property showings using the tools provided.
+
+CRITICAL RULES — you must follow these exactly:
+- NEVER tell a buyer you've checked availability unless you actually called check_availability
+- NEVER tell a buyer a showing is booked unless you actually called book_showing and got a success response
+- If you claim to have booked without calling the tool, you are lying to the buyer — do not do this
+
+Correct flow:
+1. Confirm which property and what date the buyer wants
+2. Call check_availability (date format: YYYY-MM-DD) — use the result to offer real open slots
+3. Present up to 3 slots: "We have 10 AM, 1 PM, or 3 PM open — any of those work?"
+4. Once they pick a time and you have their name and contact info, call book_showing
+5. Only after book_showing returns success, confirm: "You're all set — I've booked a private showing of [property] on [date] at [time]."
+
+If no slots are available, apologize and ask for an alternate date.
+
 # Never
 - Make up listing details
 - Quote prices or features that aren't in the data
-- Promise specific availability or showing times — that's the agent's job
 - Discuss other firms or compare prices to competitors
 
 === FIRM INFO ===
@@ -307,6 +325,113 @@ def save_lead(name, contact, interest, conversation):
     send_lead_email(name, contact, interest, conversation)
     append_to_google_sheet(name, contact, interest, conversation)
     return True
+# ──────────────────────────────────────────────────────────────
+# CALENDAR TOOLS
+# ──────────────────────────────────────────────────────────────
+
+TOOLS = [
+    {
+        "name": "check_availability",
+        "description": (
+            "Check available 1-hour showing slots on a specific date (9 AM–5 PM PT). "
+            "Call this when a buyer wants to schedule a showing and provides a date."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string",
+                    "description": "The date to check in YYYY-MM-DD format.",
+                }
+            },
+            "required": ["date"],
+        },
+    },
+    {
+        "name": "book_showing",
+        "description": (
+            "Book a 1-hour property showing on the calendar. "
+            "Only call this after the buyer has confirmed a specific time slot AND provided their name and contact info."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "Date in YYYY-MM-DD format."},
+                "time": {"type": "string", "description": "Time in HH:MM AM/PM format, e.g. '10:00 AM'."},
+                "property_address": {"type": "string", "description": "Full address of the property to be shown."},
+                "buyer_name": {"type": "string", "description": "Buyer's full name."},
+                "buyer_contact": {"type": "string", "description": "Buyer's phone number or email address."},
+            },
+            "required": ["date", "time", "property_address", "buyer_name", "buyer_contact"],
+        },
+    },
+]
+
+
+def handle_tool_call(name, inputs):
+    """Execute a tool call and return a plain-text result for Riley."""
+    if name == "check_availability":
+        slots = check_availability(inputs["date"])
+        if slots:
+            return f"Available slots on {inputs['date']}: {', '.join(slots)}"
+        return f"No availability on {inputs['date']}. Ask the buyer for an alternate date."
+
+    if name == "book_showing":
+        try:
+            link = book_showing(
+                inputs["date"],
+                inputs["time"],
+                inputs["property_address"],
+                inputs["buyer_name"],
+                inputs["buyer_contact"],
+            )
+            log_appointment_to_sheet(
+                inputs["buyer_name"],
+                inputs["buyer_contact"],
+                inputs["property_address"],
+                inputs["date"],
+                inputs["time"],
+            )
+            return f"Showing booked successfully. Calendar link: {link}"
+        except Exception as e:
+            return f"Booking failed: {e}"
+
+    return "Unknown tool."
+
+
+def log_appointment_to_sheet(name, contact, property_address, date, time):
+    """Add a booked showing row to the Google Sheet."""
+    sheet_id = os.environ.get("GOOGLE_SHEET_ID")
+    if not sheet_id:
+        return
+
+    try:
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds_json = os.environ.get("GOOGLE_CREDENTIALS_JSON")
+        if creds_json:
+            creds = Credentials.from_service_account_info(json.loads(creds_json), scopes=scopes)
+        else:
+            creds = Credentials.from_service_account_file("google-credentials.json", scopes=scopes)
+
+        client_gs = gspread.authorize(creds)
+        sheet = client_gs.open_by_key(sheet_id).sheet1
+        sheet.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            name,
+            contact,
+            f"Showing booked: {property_address} on {date} at {time}",
+            "Appointment Booked",
+            "Website chat (Riley)",
+            "",
+        ])
+        print(f"📅 Appointment logged to Google Sheet")
+    except Exception as e:
+        print(f"⚠️  Sheet appointment log error: {e}")
+
+
 # This is a "route" — when the browser visits the main page (/), serve up index.html
 @app.route("/")
 def home():
@@ -318,29 +443,61 @@ def home():
 def chat():
     data = request.json
     conversation = data.get("conversation", [])
-    
-    # Get Riley's response
-    response = client.messages.create(
-        model="claude-sonnet-4-5",
-        max_tokens=1024,
-        system=system_prompt,
-        messages=conversation
-    )
-    assistant_message = response.content[0].text
-    
-    # Build full conversation including Riley's new reply
+
+    # Agentic loop — Riley may call tools before giving a final reply
+    messages = list(conversation)
+    while True:
+        response = client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1024,
+            system=system_prompt,
+            tools=TOOLS,
+            messages=messages,
+        )
+
+        if response.stop_reason == "tool_use":
+            # Serialize the assistant's content blocks (text + tool calls)
+            assistant_content = []
+            tool_results = []
+
+            for block in response.content:
+                if block.type == "text":
+                    assistant_content.append({"type": "text", "text": block.text})
+                elif block.type == "tool_use":
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": block.id,
+                        "name": block.name,
+                        "input": block.input,
+                    })
+                    result_text = handle_tool_call(block.name, block.input)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": result_text,
+                    })
+
+            messages.append({"role": "assistant", "content": assistant_content})
+            messages.append({"role": "user", "content": tool_results})
+
+        else:
+            # Final text response
+            assistant_message = next(
+                (block.text for block in response.content if hasattr(block, "text")), ""
+            )
+            break
+
     full_conversation = conversation + [{"role": "assistant", "content": assistant_message}]
-    
-    # Run lead detection in the background of the conversation
+
     lead_info = extract_lead_info(full_conversation)
     if lead_info.get("lead"):
         save_lead(
             name=lead_info.get("name", "Unknown"),
             contact=lead_info.get("contact", "Unknown"),
             interest=lead_info.get("interest", ""),
-            conversation=full_conversation
+            conversation=full_conversation,
         )
-    
+
     return jsonify({"reply": assistant_message})
    
 
@@ -348,4 +505,4 @@ def chat():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"Server starting at http://localhost:{port}")
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True, use_reloader=False)

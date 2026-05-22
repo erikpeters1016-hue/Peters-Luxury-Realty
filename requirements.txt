@@ -6,3 +6,4 @@ gunicorn==23.0.0
 resend==2.5.1
 gspread==6.1.4
 google-auth==2.35.0
+google-api-python-client==2.154.0
